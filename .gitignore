@@ -1,0 +1,20 @@
+# 白名单模式 - 只跟踪指定的文件
+# 忽略所有文件
+*
+
+# 不忽略以下文件
+!main.py
+!upper-case.ini
+!README.md
+!ssh-host.example.ini
+
+# 不忽略.gitignore本身
+!.gitignore
+
+# 不忽略目录（以便可以添加子目录中的特定文件）
+!*/
+
+# 示例：如果需要添加其他文件，取消注释并修改
+# !other-file.txt
+# !config/
+# !config/settings.ini
