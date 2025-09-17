@@ -206,14 +206,17 @@ class GenCmd:
         Returns:
             PuTTY格式的密钥文件名（.ppk扩展名）
         """
-        # return xxx.ppk
+        if not input_name:
+            raise ValueError("input_name cannot be empty")
         filename = os.path.basename(input_name)
         filedir = os.path.dirname(input_name)
-        a = filename.split('.')
-        if len(a) <= 1:
+        # 隐藏文件或仅扩展名（以单个点开头且仅一个点）：直接追加 .ppk
+        if filename.startswith('.') and filename.count('.') == 1:
             new_filename = filename + '.ppk'
         else:
-            new_filename = '.'.join(a[:-1]) + '.ppk'
+            base, sep, ext = filename.rpartition('.')
+            # 若没有找到分隔点（sep为空），不移除扩展，直接在原名后加 .ppk
+            new_filename = (base if sep else filename) + '.ppk'
         return os.path.join(filedir, new_filename)
 
 
