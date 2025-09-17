@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # coding = utf-8
-"""SSH配置管理工具"""
+"""
+SSH配置管理工具
+使用ssh-host.ini文件保存ssh主机连接信息
+使用脚本转换成putty和teraterm的启动命令
+"""
+
+from typing import LiteralString
+
 
 from configparser import ConfigParser
 import os
@@ -11,15 +18,39 @@ import datetime
 from collections.abc import Mapping
 
 
-CUDIR = os.path.abspath(os.path.dirname(__file__))
-MY_CONF_FILE = os.path.join(CUDIR, 'ssh-host.ini')
-GITBASH_CONF_DIR = os.path.join('C:\\', '1', 'gitbash', 'ssh-host.d')
-SSH_CONF_FILE = os.path.join(os.environ.get('USERPROFILE') or '', '.ssh', 'config')
-TTH_OUT_DIR= os.path.join('C:\\', '1', 'tth')
-PTH_OUT_DIR = os.path.join('C:\\', '1', 'pth')
-USER_SSH_CFG_FILE = os.path.join(os.environ.get('USERPROFILE') or '', '.ssh', 'config')
-AUTO_SSH_CFG_FILE = os.path.join('C:\\', '1', 'ssh-cfg-auto-generate', 'config')
-UPPER_CONF_FILE = os.path.join(CUDIR, 'upper-case.ini')
+CUDIR: str = os.path.abspath(os.path.dirname(__file__))  # 脚本文件所在目录
+MY_CONF_FILE: str = os.path.join(CUDIR, 'ssh-host.ini')  # ssh-host配置文件
+GITBASH_CONF_DIR: str = os.path.join('C:\\', '1', 'gitbash', 'ssh-host.d')  # 兼容其他脚本, 目前没有使用
+SSH_CONF_FILE: str = os.path.join(os.environ.get('USERPROFILE') or '', '.ssh', 'config')  # 用户默认ssh配置目录, 目前没有使用
+TTH_OUT_DIR: str = os.path.join('C:\\', '1', 'tth')  # tera term 命令行文件输出目录
+PTH_OUT_DIR: str = os.path.join('C:\\', '1', 'pth')  # putty 命令行文件输出目录
+USER_SSH_CFG_FILE: str = os.path.join(os.environ.get('USERPROFILE') or '', '.ssh', 'config')  # 输出ssh配置文件, 会生效
+AUTO_SSH_CFG_FILE: str = os.path.join('C:\\', '1', 'ssh-cfg-auto-generate', 'config')  # 输出ssh配置文件, 不会生效, 除非 ssh -F 指定
+UPPER_CONF_FILE: str = os.path.join(CUDIR, 'upper-case.ini')  # ini键名大写修正配置
+SSHKEY_KEEP_DIR: str = os.path.join(CUDIR, 'sshkey')  # ssh密钥文件保存路径, ssh-host.ini中没有指定绝对路径, 则使用这个目录
+SSHKEY_OUT_DIR: str = os.path.join('C:\\', '0', 'sshkey')  # ssh密钥文件输出目录, 因为原文件可能权限不对, 统一复制到这个目录, 处理权限
+
+
+def has_path_component(name: str) -> bool:
+    """
+    判断是否包含路径信息（相对或绝对）。
+    - 绝对路径: os.path.isabs(name) 为 True
+    - 相对路径但含目录分隔符: 包含 os.sep 或（在 Windows）包含备用分隔符 '/' 或 '\\'
+    """
+    if not name:
+        return False
+    if os.path.isabs(name):
+        return True
+    # 兼容 Windows：可能混用 / 与 \
+    seps = {os.sep}
+    if os.altsep:
+        seps.add(os.altsep)
+    return any(s in name for s in seps)
+
+
+def is_absolute_path(name: str) -> bool:
+    """是否为绝对路径。"""
+    return bool(name) and os.path.isabs(name)
 
 
 class GenCmd:
@@ -36,7 +67,7 @@ class GenCmd:
             'port': conf.get('Port'),
             'user': conf.get('User'),
             'password': conf.get('Password'),
-            'keyfile': conf.get('IdentityFile'),
+            'keyfile': self.trans_keyfile_path(input_path=conf.get('IdentityFile')),
             'auth_type': conf.get('AuthType')
         }
 
@@ -156,10 +187,18 @@ class GenCmd:
         """
         return self._proxy_config['password']
 
-    # def ssh_config(self, conf):
-    #     cfg = f'Host {self.section}\n'
-    #     for
-    #     cfg += f'\t
+    def trans_keyfile_path(self, input_path: str) -> str:
+        keyfile_path: str = input_path
+        if keyfile_path.startswith('~'):
+            keyfile_path: str = os.path.expanduser(keyfile_path)
+        if not is_absolute_path(name=keyfile_path):
+            keyfile_path: str = os.path.join(SSHKEY_KEEP_DIR, keyfile_path)
+        if os.path.dirname(keyfile_path) != SSHKEY_OUT_DIR:
+            os.makedirs(name=SSHKEY_OUT_DIR, exist_ok=True)
+            dst_path = os.path.join(SSHKEY_OUT_DIR, os.path.basename(keyfile_path))
+            shutil.copy2(keyfile_path, dst_path)
+            keyfile_path: str = dst_path
+        return keyfile_path
 
     def tth(self, outfile: str) -> None:
         """生成Tera Term连接批处理文件
