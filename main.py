@@ -15,18 +15,32 @@ import datetime
 from collections.abc import Mapping
 
 
-CUDIR: str = os.path.abspath(os.path.dirname(__file__))  # 脚本文件所在目录
-MY_CONF_FILE: str = os.path.join(CUDIR, 'ssh-host.ini')  # ssh-host配置文件
-GITBASH_CONF_DIR: str = os.path.join('C:\\', '1', 'gitbash', 'ssh-host.d')  # 兼容其他脚本, 目前没有使用
-SSH_CONF_FILE: str = os.path.join(os.environ.get('USERPROFILE') or '', '.ssh', 'config')  # 用户默认ssh配置目录, 目前没有使用
-TTH_OUT_DIR: str = os.path.join('C:\\', '1', 'tth')  # tera term 命令行文件输出目录
-PTH_OUT_DIR: str = os.path.join('C:\\', '1', 'pth')  # putty 命令行文件输出目录
-USER_SSH_CFG_FILE: str = os.path.join(os.environ.get('USERPROFILE') or '', '.ssh', 'config')  # 输出ssh配置文件, 会生效
-AUTO_SSH_CFG_FILE: str = os.path.join('C:\\', '1', 'ssh-cfg-auto-generate', 'config')  # 输出ssh配置文件, 不会生效, 除非 ssh -F 指定
-UPPER_CONF_FILE: str = os.path.join(CUDIR, 'upper-case.ini')  # ini键名大写修正配置
-SSHKEY_KEEP_DIR: str = os.path.join(CUDIR, 'sshkey')  # ssh密钥文件保存路径, ssh-host.ini中没有指定绝对路径, 则使用这个目录
-SSHKEY_OUT_DIR: str = os.path.join('C:\\', '0', 'sshkey')  # ssh密钥文件输出目录, 因为原文件可能权限不对, 统一复制到这个目录, 处理权限
-DEFAULT_IDENTITY_FILE = '~/.ssh/id_rsa'  # 默认sshkey
+# 脚本文件所在目录
+CUDIR: str = os.path.abspath(os.path.dirname(__file__))
+# ssh-host配置文件
+MY_CONF_FILE: str = os.path.join(CUDIR, 'ssh-host.ini')
+# 兼容其他脚本, 目前没有使用
+GITBASH_CONF_DIR: str = os.path.join('C:\\', '1', 'gitbash', 'ssh-host.d')
+# 用户主目录（用于拼接 .ssh/config）
+USER_HOME: str = os.environ.get('USERPROFILE') or ''
+# 用户默认ssh配置目录, 目前没有使用
+SSH_CONF_FILE: str = os.path.join(USER_HOME, '.ssh', 'config')
+# tera term 命令行文件输出目录
+TTH_OUT_DIR: str = os.path.join('C:\\', '1', 'tth')
+# putty 命令行文件输出目录
+PTH_OUT_DIR: str = os.path.join('C:\\', '1', 'pth')
+# 输出ssh配置文件, 会生效
+USER_SSH_CFG_FILE: str = os.path.join(USER_HOME, '.ssh', 'config')
+# 输出ssh配置文件, 不会生效, 除非 ssh -F 指定
+AUTO_SSH_CFG_FILE: str = os.path.join('C:\\', '1', 'ssh-cfg-auto-generate', 'config')
+# ini键名大写修正配置
+UPPER_CONF_FILE: str = os.path.join(CUDIR, 'upper-case.ini')
+# ssh密钥文件保存路径, ssh-host.ini中没有指定绝对路径, 则使用这个目录
+SSHKEY_KEEP_DIR: str = os.path.join(CUDIR, 'sshkey')
+# ssh密钥文件输出目录, 因为原文件可能权限不对, 统一复制到这个目录, 处理权限
+SSHKEY_OUT_DIR: str = os.path.join('C:\\', '0', 'sshkey')
+# 默认sshkey
+DEFAULT_IDENTITY_FILE = '~/.ssh/id_rsa'
 
 def has_path_component(name: str) -> bool:
     """
@@ -51,6 +65,12 @@ def is_absolute_path(name: str) -> bool:
 
 
 def trans_keyfile_path(input_path: str) -> str:
+    """规范化并准备SSH密钥文件路径：
+    - 展开 ~ 为用户目录
+    - 非绝对路径时，拼接到 SSHKEY_KEEP_DIR
+    - 将密钥复制到 SSHKEY_OUT_DIR（若不在该目录且目标不存在）
+    - 返回规范化后的最终路径
+    """
     # print(f'input_path: {input_path}')
     keyfile_path: str = input_path
     if keyfile_path.startswith('~'):
@@ -63,7 +83,7 @@ def trans_keyfile_path(input_path: str) -> str:
             os.makedirs(name=SSHKEY_OUT_DIR, exist_ok=True)
             final_keyfile_path = os.path.join(SSHKEY_OUT_DIR, os.path.basename(keyfile_path))
             if not os.path.exists(final_keyfile_path):
-                shutil.copy2(keyfile_path, final_keyfile_path)
+                _ = shutil.copy2(keyfile_path, final_keyfile_path)
                 print(f'copy keyfile {keyfile_path} to {final_keyfile_path}')
         except (OSError, IOError) as e:
             print(f"Warning: failed to prepare/copy key file to {SSHKEY_OUT_DIR}: {e}")
@@ -109,7 +129,7 @@ class GenCmd:
     @property
     def host(self) -> str | None:
         """获取SSH连接的主机地址
-        
+
         Returns:
             主机地址字符串，如果未配置则返回None
         """
@@ -118,7 +138,7 @@ class GenCmd:
     @property
     def port(self) -> str | None:
         """获取SSH连接的端口号
-        
+
         Returns:
             端口号字符串，如果未配置则返回None
         """
@@ -127,7 +147,7 @@ class GenCmd:
     @property
     def user(self) -> str | None:
         """获取SSH连接的用户名
-        
+
         Returns:
             用户名字符串，如果未配置则返回None
         """
@@ -136,7 +156,7 @@ class GenCmd:
     @property
     def password(self) -> str | None:
         """获取SSH连接的密码
-        
+
         Returns:
             密码字符串，如果未配置则返回None
         """
@@ -145,7 +165,7 @@ class GenCmd:
     @property
     def keyfile(self) -> str | None:
         """获取SSH连接的密钥文件路径
-        
+
         Returns:
             密钥文件路径字符串，如果未配置则返回None
         """
@@ -154,7 +174,7 @@ class GenCmd:
     @property
     def auth_type(self) -> str | None:
         """获取SSH连接的认证类型
-        
+
         Returns:
             认证类型字符串，如果未配置则返回None
         """
@@ -163,7 +183,7 @@ class GenCmd:
     @property
     def proxy_type(self) -> str | None:
         """获取代理类型
-        
+
         Returns:
             代理类型字符串，如果未配置则返回None
         """
@@ -172,7 +192,7 @@ class GenCmd:
     @property
     def proxy_host(self) -> str | None:
         """获取代理服务器主机地址
-        
+
         Returns:
             代理主机地址字符串，如果未配置则返回None
         """
@@ -181,7 +201,7 @@ class GenCmd:
     @property
     def proxy_port(self) -> str | None:
         """获取代理服务器端口号
-        
+
         Returns:
             代理端口号字符串，如果未配置则返回None
         """
@@ -190,7 +210,7 @@ class GenCmd:
     @property
     def proxy_user(self) -> str | None:
         """获取代理认证用户名
-        
+
         Returns:
             代理用户名字符串，如果未配置则返回None
         """
@@ -199,7 +219,7 @@ class GenCmd:
     @property
     def proxy_password(self) -> str | None:
         """获取代理认证密码
-        
+
         Returns:
             代理密码字符串，如果未配置则返回None
         """
@@ -207,7 +227,7 @@ class GenCmd:
 
     def tth(self, outfile: str) -> None:
         """生成Tera Term连接批处理文件
-        
+
         Args:
             outfile: 输出批处理文件路径
         """
@@ -244,10 +264,10 @@ class GenCmd:
 
     def trans_putty_keyfile_name(self, input_name:str) -> str:
         """转换SSH密钥文件名为PuTTY格式
-        
+
         Args:
             input_name: 原始密钥文件名
-            
+
         Returns:
             PuTTY格式的密钥文件名（.ppk扩展名）
         """
@@ -266,7 +286,7 @@ class GenCmd:
 
     def pth(self, outfile: str) -> None:
         """生成PuTTY连接批处理文件
-        
+
         Args:
             outfile: 输出批处理文件路径
         """
@@ -289,7 +309,7 @@ class GenCmd:
             autharg += f' -l {self.user}'
         if self.keyfile:
             keyfile: str = self.trans_putty_keyfile_name(self.keyfile)
-            keyfile: str = trans_keyfile_path(input_path=keyfile)
+            keyfile = trans_keyfile_path(input_path=keyfile)
             autharg += f' -i "{keyfile}"'
         if self.password:
             autharg += f' -pw "{self.password}"'
@@ -394,10 +414,10 @@ class FixUpper:
         self.section: str = 'upper'
     def get(self, option: str) -> str:
         """获取配置键名对应的大写形式
-        
+
         Args:
             option: 原始配置键名
-            
+
         Returns:
             转换后的大写键名，如果未配置则返回原键名
         """
@@ -427,7 +447,7 @@ def main() -> None:
                 continue
             if key.lower() == "identityfile":
                 processed: str = trans_keyfile_path(input_path=value)
-                value: str = processed
+                value = processed
 
             key_with_upper: str = fix_upper.get(option=key)
             ssh_cfg_line: str = f'    {key_with_upper} {value}'
@@ -448,9 +468,9 @@ def main() -> None:
             ts = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
             bak_path = f"{user_cfg_path}.bak-{ts}"
             _ = shutil.copy2(user_cfg_path, bak_path)
-            _ = print(f"Backup created: {bak_path}")
+            print(f"Backup created: {bak_path}")
     except (OSError, IOError) as e:
-        _ = print(f"Warning: failed to backup {USER_SSH_CFG_FILE}: {e}")
+        print(f"Warning: failed to backup {USER_SSH_CFG_FILE}: {e}")
     with open(USER_SSH_CFG_FILE, 'w', encoding='utf-8') as f:
         f.writelines(ssh_cfg_list)
 
