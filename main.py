@@ -6,7 +6,7 @@ SSH配置管理工具
 使用脚本转换成putty和teraterm的启动命令
 """
 
-from typing import LiteralString
+from typing import Any, LiteralString
 
 
 from configparser import ConfigParser
@@ -29,7 +29,7 @@ AUTO_SSH_CFG_FILE: str = os.path.join('C:\\', '1', 'ssh-cfg-auto-generate', 'con
 UPPER_CONF_FILE: str = os.path.join(CUDIR, 'upper-case.ini')  # ini键名大写修正配置
 SSHKEY_KEEP_DIR: str = os.path.join(CUDIR, 'sshkey')  # ssh密钥文件保存路径, ssh-host.ini中没有指定绝对路径, 则使用这个目录
 SSHKEY_OUT_DIR: str = os.path.join('C:\\', '0', 'sshkey')  # ssh密钥文件输出目录, 因为原文件可能权限不对, 统一复制到这个目录, 处理权限
-
+DEFAULT_IDENTITY_FILE = '~/.ssh/id_rsa'  # 默认sshkey
 
 def has_path_component(name: str) -> bool:
     """
@@ -53,6 +53,27 @@ def is_absolute_path(name: str) -> bool:
     return bool(name) and os.path.isabs(name)
 
 
+def trans_keyfile_path(input_path: str) -> str:
+    # print(f'input_path: {input_path}')
+    keyfile_path: str = input_path
+    if keyfile_path.startswith('~'):
+        keyfile_path: str = os.path.expanduser(keyfile_path)
+    if not is_absolute_path(name=keyfile_path):
+        keyfile_path: str = os.path.join(SSHKEY_KEEP_DIR, keyfile_path)
+    final_keyfile_path: str = keyfile_path
+    if os.path.dirname(keyfile_path) != SSHKEY_OUT_DIR:
+        try:
+            os.makedirs(name=SSHKEY_OUT_DIR, exist_ok=True)
+            final_keyfile_path: str = os.path.join(SSHKEY_OUT_DIR, os.path.basename(keyfile_path))
+            if not os.path.exists(final_keyfile_path):
+                shutil.copy2(keyfile_path, final_keyfile_path)
+                print(f'copy keyfile {keyfile_path} to {final_keyfile_path}')
+        except (OSError, IOError) as e:
+            print(f"Warning: failed to prepare/copy key file to {SSHKEY_OUT_DIR}: {e}")
+    # return os.path.expanduser(final_keyfile_path)
+    return os.path.normpath(final_keyfile_path)
+
+
 class GenCmd:
     """SSH连接命令生成器类
 
@@ -67,7 +88,7 @@ class GenCmd:
             'port': conf.get('Port'),
             'user': conf.get('User'),
             'password': conf.get('Password'),
-            'keyfile': self.trans_keyfile_path(input_path=conf.get('IdentityFile')),
+            'keyfile': conf.get('IdentityFile'),
             'auth_type': conf.get('AuthType')
         }
 
@@ -187,19 +208,6 @@ class GenCmd:
         """
         return self._proxy_config['password']
 
-    def trans_keyfile_path(self, input_path: str) -> str:
-        keyfile_path: str = input_path
-        if keyfile_path.startswith('~'):
-            keyfile_path: str = os.path.expanduser(keyfile_path)
-        if not is_absolute_path(name=keyfile_path):
-            keyfile_path: str = os.path.join(SSHKEY_KEEP_DIR, keyfile_path)
-        if os.path.dirname(keyfile_path) != SSHKEY_OUT_DIR:
-            os.makedirs(name=SSHKEY_OUT_DIR, exist_ok=True)
-            dst_path = os.path.join(SSHKEY_OUT_DIR, os.path.basename(keyfile_path))
-            shutil.copy2(keyfile_path, dst_path)
-            keyfile_path: str = dst_path
-        return keyfile_path
-
     def tth(self, outfile: str) -> None:
         """生成Tera Term连接批处理文件
         
@@ -224,7 +232,8 @@ class GenCmd:
         if self.user:
             autharg += f' /user={self.user}'
         if self.keyfile:
-            autharg += f' /keyfile="{self.keyfile}"'
+            keyfile: str = trans_keyfile_path(input_path=self.keyfile)
+            autharg += f' /keyfile="{keyfile}"'
         if self.password:
             autharg += f' /password="{self.password}"'
         cmd = ''
@@ -255,9 +264,8 @@ class GenCmd:
         else:
             base, sep, ext = filename.rpartition('.')
             # 若没有找到分隔点（sep为空），不移除扩展，直接在原名后加 .ppk
-            new_filename = (base if sep else filename) + '.ppk'
+            new_filename: str = (base if sep else filename) + '.ppk'
         return os.path.join(filedir, new_filename)
-
 
     def pth(self, outfile: str) -> None:
         """生成PuTTY连接批处理文件
@@ -283,7 +291,8 @@ class GenCmd:
         if self.user:
             autharg += f' -l {self.user}'
         if self.keyfile:
-            keyfile = self.trans_putty_keyfile_name(self.keyfile)
+            keyfile: str = self.trans_putty_keyfile_name(self.keyfile)
+            keyfile: str = trans_keyfile_path(input_path=keyfile)
             autharg += f' -i "{keyfile}"'
         if self.password:
             autharg += f' -pw "{self.password}"'
@@ -412,26 +421,29 @@ def main() -> None:
     ssh_cfg_list: list[str] = []
     for section in conf_parser.sections():
         ssh_cfg_line = f'Host {section}'
-        print(ssh_cfg_line)
+        # print(ssh_cfg_line)
         ssh_cfg_list.append(ssh_cfg_line + '\n')
         conf = conf_parser[section]
         for key in conf.keys():
-            value = conf.get(key)
-            key_with_upper = fix_upper.get(key)
-            ssh_cfg_line = f'    {key_with_upper} {value}'
-            print(ssh_cfg_line)
+            if key.lower() == "identityfile":
+                value: str | None = trans_keyfile_path(input_path=conf.get(key))
+            else:
+                value: str | None = conf.get(key)
+            key_with_upper: str = fix_upper.get(option=key)
+            ssh_cfg_line: str = f'    {key_with_upper} {value}'
+            # print(ssh_cfg_line)
             ssh_cfg_list.append(ssh_cfg_line + '\n')
-        cmd = GenCmd(section, conf)
-        os.makedirs(TTH_OUT_DIR, exist_ok=True)
-        cmd.tth(os.path.join(TTH_OUT_DIR, f'{section}.bat'))
-        os.makedirs(PTH_OUT_DIR, exist_ok=True)
-        cmd.pth(os.path.join(PTH_OUT_DIR, f'{section}.bat'))
+        cmd: GenCmd = GenCmd(section, conf)
+        os.makedirs(name=TTH_OUT_DIR, exist_ok=True)
+        cmd.tth(outfile=os.path.join(TTH_OUT_DIR, f'{section}.bat'))
+        os.makedirs(name=PTH_OUT_DIR, exist_ok=True)
+        cmd.pth(outfile=os.path.join(PTH_OUT_DIR, f'{section}.bat'))
     # AUTO_SSH_CFG_FILE 自动生成的文件, 不用备份
-    with open(os.path.join(AUTO_SSH_CFG_FILE), 'w', encoding='utf-8') as f:
+    with open(AUTO_SSH_CFG_FILE, 'w', encoding='utf-8') as f:
         f.writelines(ssh_cfg_list)
     # USER_SSH_CFG_FILE 写入之前加个备份
     try:
-        user_cfg_path = os.path.join(USER_SSH_CFG_FILE)
+        user_cfg_path: str = os.path.join(USER_SSH_CFG_FILE)
         if os.path.isfile(user_cfg_path):
             ts = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
             bak_path = f"{user_cfg_path}.bak-{ts}"
@@ -439,7 +451,7 @@ def main() -> None:
             _ = print(f"Backup created: {bak_path}")
     except (OSError, IOError) as e:
         _ = print(f"Warning: failed to backup {USER_SSH_CFG_FILE}: {e}")
-    with open(os.path.join(USER_SSH_CFG_FILE), 'w', encoding='utf-8') as f:
+    with open(USER_SSH_CFG_FILE, 'w', encoding='utf-8') as f:
         f.writelines(ssh_cfg_list)
 
 if __name__ == '__main__':
