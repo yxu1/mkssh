@@ -84,7 +84,32 @@ def trans_keyfile_path(input_path: str) -> str:
             final_keyfile_path = os.path.join(SSHKEY_OUT_DIR, os.path.basename(keyfile_path))
             if not os.path.exists(final_keyfile_path):
                 _ = shutil.copy2(keyfile_path, final_keyfile_path)
-                print(f'copy keyfile {keyfile_path} to {final_keyfile_path}')
+                # 设置SSH密钥文件权限：只有文件所有者可以读写，其他用户无权限
+                try:
+                    import stat
+                    import platform
+                    import subprocess
+                    
+                    if platform.system() == 'Windows':
+                        # Windows权限设置：移除所有继承权限，只给当前用户完全控制权限
+                        try:
+                            # 禁用继承并移除所有现有权限
+                            subprocess.run(['icacls', final_keyfile_path, '/inheritance:r'], 
+                                         check=True, capture_output=True, text=True)
+                            # 给当前用户完全控制权限
+                            subprocess.run(['icacls', final_keyfile_path, '/grant', f'{os.environ.get("USERNAME")}:F'], 
+                                         check=True, capture_output=True, text=True)
+                            print(f'copy keyfile {keyfile_path} to {final_keyfile_path} and set Windows permissions')
+                        except subprocess.CalledProcessError as win_perm_error:
+                            print(f'Warning: failed to set Windows permissions on {final_keyfile_path}: {win_perm_error}')
+                            # 如果Windows权限设置失败，尝试使用基本的chmod
+                            os.chmod(final_keyfile_path, stat.S_IRUSR | stat.S_IWUSR)
+                    else:
+                        # Linux/Unix权限设置
+                        os.chmod(final_keyfile_path, stat.S_IRUSR | stat.S_IWUSR)
+                        print(f'copy keyfile {keyfile_path} to {final_keyfile_path} and set Unix permissions')
+                except OSError as perm_error:
+                    print(f'Warning: failed to set permissions on {final_keyfile_path}: {perm_error}')
         except (OSError, IOError) as e:
             print(f"Warning: failed to prepare/copy key file to {SSHKEY_OUT_DIR}: {e}")
     # return os.path.expanduser(final_keyfile_path)
