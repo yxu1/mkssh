@@ -6,9 +6,6 @@ SSH配置管理工具
 使用脚本转换成putty和teraterm的启动命令
 """
 
-from typing import Any, LiteralString
-
-
 from configparser import ConfigParser
 import os
 import re
@@ -57,14 +54,14 @@ def trans_keyfile_path(input_path: str) -> str:
     # print(f'input_path: {input_path}')
     keyfile_path: str = input_path
     if keyfile_path.startswith('~'):
-        keyfile_path: str = os.path.expanduser(keyfile_path)
+        keyfile_path = os.path.expanduser(keyfile_path)
     if not is_absolute_path(name=keyfile_path):
-        keyfile_path: str = os.path.join(SSHKEY_KEEP_DIR, keyfile_path)
+        keyfile_path = os.path.join(SSHKEY_KEEP_DIR, keyfile_path)
     final_keyfile_path: str = keyfile_path
     if os.path.dirname(keyfile_path) != SSHKEY_OUT_DIR:
         try:
             os.makedirs(name=SSHKEY_OUT_DIR, exist_ok=True)
-            final_keyfile_path: str = os.path.join(SSHKEY_OUT_DIR, os.path.basename(keyfile_path))
+            final_keyfile_path = os.path.join(SSHKEY_OUT_DIR, os.path.basename(keyfile_path))
             if not os.path.exists(final_keyfile_path):
                 shutil.copy2(keyfile_path, final_keyfile_path)
                 print(f'copy keyfile {keyfile_path} to {final_keyfile_path}')
@@ -262,7 +259,7 @@ class GenCmd:
         if filename.startswith('.') and filename.count('.') == 1:
             new_filename = filename + '.ppk'
         else:
-            base, sep, ext = filename.rpartition('.')
+            base, sep, _ = filename.rpartition('.')
             # 若没有找到分隔点（sep为空），不移除扩展，直接在原名后加 .ppk
             new_filename: str = (base if sep else filename) + '.ppk'
         return os.path.join(filedir, new_filename)
@@ -425,10 +422,13 @@ def main() -> None:
         ssh_cfg_list.append(ssh_cfg_line + '\n')
         conf = conf_parser[section]
         for key in conf.keys():
+            value: str = conf.get(key) or ""
+            if value == "":
+                continue
             if key.lower() == "identityfile":
-                value: str | None = trans_keyfile_path(input_path=conf.get(key))
-            else:
-                value: str | None = conf.get(key)
+                processed: str = trans_keyfile_path(input_path=value)
+                value: str = processed
+
             key_with_upper: str = fix_upper.get(option=key)
             ssh_cfg_line: str = f'    {key_with_upper} {value}'
             # print(ssh_cfg_line)
