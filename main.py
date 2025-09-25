@@ -338,7 +338,8 @@ class GenCmd:
             autharg += f' -i "{keyfile}"'
         if self.password:
             autharg += f' -pw "{self.password}"'
-        cmd += (f'start "" {exefile} -ssh -noshare {proxyarg} {autharg} '
+        cmd += (f'start "" {exefile} -load Dracula -ssh -noshare '
+                f'{proxyarg} {autharg} '
                 f'-P {self.port} {self.host} & {os.linesep}')
         with open(outfile, 'w', encoding='utf-8') as f:
             _ = f.write(cmd)
