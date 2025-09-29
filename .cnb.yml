@@ -1,0 +1,16 @@
+# 云开发环境
+$:
+  vscode:
+    - docker:
+        # build: Dockerfile
+        # 可选择是否同时定义 build 和 image
+        # 此时会优先使用 .ide/Dockerfile 构建镜像
+        # 如果 .ide/Dockerfile 构建失败，则使用 image 指定的镜像保证环境能启动成功
+        image: docker.cnb.cool/braytack/cnb-ydev:latest
+      services:
+        - vscode
+        - docker
+      # 开发环境启动后会执行的任务
+      stages:
+        - name: ls
+          script: ls -al

@@ -3,10 +3,10 @@
 *
 
 # 不忽略以下文件
-!main.py
-!upper-case.ini
-!README.md
-!ssh-host.example.ini
+!/main.py
+!/upper-case.ini
+!/README.md
+!/ssh-host.example.ini
 
 # 不忽略.gitignore本身
 !.gitignore
@@ -18,3 +18,4 @@
 # !other-file.txt
 # !config/
 # !config/settings.ini
+!/.cnb.yml
