@@ -351,9 +351,40 @@ class HostConf:
         """初始化配置解析器并读取配置文件"""
         self.conf_parser: configparser.ConfigParser = configparser.ConfigParser()
         _ = self.conf_parser.read(MY_CONF_FILE, encoding='utf-8')
+        self.extend_asterisk()
         # self.compat_file()
         # self.compat_dir()
         # 改成统一从ini生成ssh-config写入到系统目录, 所以不从系统的ssh配置目录解析ssh配置了. ssh-host.ini就是最全的配置.
+
+    def extend_section_with(self, sect):
+        pattern = "^" + re.escape(sect).replace("\\*", ".*") + "$"
+        r = re.compile(pattern)
+        print(f'pattern: {pattern}')
+        for s in self.conf_parser.sections():
+            if s == sect:
+                return
+            m = r.match(s)
+            if not m:
+                continue
+            print(f's: {s}')
+            for k in self.conf_parser[sect]:
+                if k not in self.conf_parser[s]:
+                    self.conf_parser[s][k] = self.conf_parser[sect][k]
+
+    def extend_asterisk(self):
+        """扩展通配符"""
+        sections = self.conf_parser.sections()
+        for sect in sections:
+            if sect == '*':
+                # 全局默认配置写到[DEFAULT]里面, 这里不处理, 并且删除这个section
+                self.conf_parser.remove_section(sect)
+                continue
+            if '*' not in sect:
+                continue
+            print(f'sect: {sect}')
+            self.extend_section_with(sect)
+            self.conf_parser.remove_section(sect)
+
 
     def compat_file(self) -> None:
         """从系统SSH配置文件兼容转换配置到ini格式"""
