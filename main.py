@@ -359,14 +359,12 @@ class HostConf:
     def extend_section_with(self, sect):
         pattern = "^" + re.escape(sect).replace("\\*", ".*") + "$"
         r = re.compile(pattern)
-        print(f'pattern: {pattern}')
         for s in self.conf_parser.sections():
             if s == sect:
                 return
             m = r.match(s)
             if not m:
                 continue
-            print(f's: {s}')
             for k in self.conf_parser[sect]:
                 if k not in self.conf_parser[s]:
                     self.conf_parser[s][k] = self.conf_parser[sect][k]
@@ -381,7 +379,6 @@ class HostConf:
                 continue
             if '*' not in sect:
                 continue
-            print(f'sect: {sect}')
             self.extend_section_with(sect)
             self.conf_parser.remove_section(sect)
 
