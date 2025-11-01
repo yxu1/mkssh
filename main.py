@@ -258,7 +258,7 @@ class GenCmd:
         """
         # command for tera term ttssh
         # https://teratermproject.github.io/manual/5/en/commandline/ttssh.html
-        exefile = '"%programfiles(x86)%\\teraterm5\\ttermpro.exe"'
+        exefile = '"%programfiles%\\teraterm5\\ttermpro.exe"'
         if self.proxy_type and self.proxy_type != 'none':
             if self.proxy_user:
                 proxyarg = (f'-proxy {self.proxy_type}://{self.proxy_user}'
