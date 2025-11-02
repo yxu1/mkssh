@@ -317,8 +317,7 @@ class GenCmd:
         """
         # command for putty
         exefile = '"%programfiles%\\PuTTY\\putty.exe"'
-        cork_exe = ('C:\\Program Files\\Tencent\\WeTERM\\resources\\'
-                   'external\\win32\\x86\\corkscrew.exe')
+        cork_exe = ('C:\\app\\ckcr\\ckcr.exe')
         cmd = ''
         cmd += f'@echo off{os.linesep}'
         if self.proxy_type and self.proxy_type == 'http':
@@ -484,6 +483,74 @@ class FixUpper:
             return o
 
 
+def gen_ssh_proxy_command(proxy_type, **kv):
+    """
+    生成ssh配置文件里边的ProxyCommand命令
+    比如http代理就是
+    ProxyCommand "C:\app\ckcr\ckcr.exe" 127.0.0.1 12639 %h %p
+    """
+    if proxy_type == 'http':
+        # HTTP代理配置
+        proxy_host = kv.get('proxy_host', '')
+        proxy_port = kv.get('proxy_port', '')
+        proxy_user = kv.get('proxy_user', '')
+        proxy_password = kv.get('proxy_password', '')
+        cork_exe = 'C:\\app\\ckcr\\ckcr.exe'
+        # 检查必要参数
+        if not proxy_host or not proxy_port:
+            raise ValueError("HTTP proxy requires proxy_host and proxy_port")
+        
+        # 构建代理命令
+        proxy_cmd = ""
+        if proxy_user and proxy_password:
+            proxy_cmd = f'ProxyCommand "{cork_exe}" {proxy_host} {proxy_port} %h %p -u "{proxy_user}:{proxy_password}"'
+        else:
+            proxy_cmd = f'ProxyCommand "{cork_exe}" {proxy_host} {proxy_port} %h %p'
+        
+        return proxy_cmd
+    
+    elif proxy_type == 'socks5':
+        # SOCKS5代理配置
+        proxy_host = kv.get('proxy_host', '')
+        proxy_port = kv.get('proxy_port', '')
+        proxy_user = kv.get('proxy_user', '')
+        proxy_password = kv.get('proxy_password', '')
+        
+        # 检查必要参数
+        if not proxy_host or not proxy_port:
+            raise ValueError("SOCKS5 proxy requires proxy_host and proxy_port")
+        
+        # 构建代理命令
+        proxy_cmd = ""
+        if proxy_user and proxy_password:
+            proxy_cmd = f'ProxyCommand "C:\\Program Files\\Git\\mingw64\\bin\\connect.exe" -S {proxy_user}:{proxy_password}@{proxy_host}:{proxy_port} %h %p'
+        else:
+            proxy_cmd = f'ProxyCommand "C:\\Program Files\\Git\\mingw64\\bin\\connect.exe" -S {proxy_host}:{proxy_port} %h %p'
+        
+        return proxy_cmd
+    
+    elif proxy_type == 'ssh':
+        # SSH跳板机代理
+        jump_host = kv.get('jump_host', '')
+        jump_port = kv.get('jump_port', '22')
+        jump_user = kv.get('jump_user', '')
+        
+        if not jump_host:
+            raise ValueError("SSH proxy requires jump_host")
+        
+        proxy_cmd = f'ProxyCommand ssh -W %h:%p'
+        if jump_user:
+            proxy_cmd += f' -l {jump_user}'
+        proxy_cmd += f' {jump_host} -p {jump_port}'
+        
+        return f'ProxyCommand {proxy_cmd}'
+    
+    elif proxy_type == 'none' or not proxy_type:
+        return ''
+    
+    else:
+        raise ValueError(f"Unsupported proxy type: {proxy_type}")
+
 
 def main() -> None:
     """主函数：生成SSH配置和连接脚本"""
@@ -495,6 +562,7 @@ def main() -> None:
         # print(ssh_cfg_line)
         ssh_cfg_list.append(ssh_cfg_line + '\n')
         conf = conf_parser[section]
+        need_proxy = False
         for key in conf.keys():
             value: str = conf.get(key) or ""
             if value == "":
@@ -502,11 +570,22 @@ def main() -> None:
             if key.lower() == "identityfile":
                 processed: str = trans_keyfile_path(input_path=value)
                 value = processed
-
+            if key.lower() == 'proxytype':
+                need_proxy = True
             key_with_upper: str = fix_upper.get(option=key)
             ssh_cfg_line: str = f'    {key_with_upper} {value}'
             # print(ssh_cfg_line)
             ssh_cfg_list.append(ssh_cfg_line + '\n')
+        if need_proxy:
+            proxy_cmd = gen_ssh_proxy_command(
+                proxy_type = conf.get('ProxyType'),
+                proxy_host = conf.get('ProxyHost'),
+                proxy_port = conf.get('ProxyPort'), 
+                proxy_user = conf.get('ProxyUser', ''),
+                proxy_password = conf.get('ProxyPassword', '')
+            )
+            if proxy_cmd:
+                ssh_cfg_list.append(f'    {proxy_cmd}\n')
         cmd: GenCmd = GenCmd(section, conf)
         os.makedirs(name=TTH_OUT_DIR, exist_ok=True)
         cmd.tth(outfile=os.path.join(TTH_OUT_DIR, f'{section}.bat'))
