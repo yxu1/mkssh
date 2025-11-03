@@ -261,10 +261,10 @@ class GenCmd:
         exefile = '"%programfiles%\\teraterm5\\ttermpro.exe"'
         if self.proxy_type and self.proxy_type != 'none':
             if self.proxy_user:
-                proxyarg = (f'-proxy {self.proxy_type}://{self.proxy_user}'
+                proxyarg = (f'-proxy={self.proxy_type}://{self.proxy_user}'
                            f':{self.proxy_password}@{self.proxy_host}:{self.proxy_port}')
             else:
-                proxyarg = f'-proxy {self.proxy_type}://{self.proxy_host}:{self.proxy_port}'
+                proxyarg = f'-proxy={self.proxy_type}://{self.proxy_host}:{self.proxy_port}'
         else:
             proxyarg = '-noproxy'
         if self.auth_type:
