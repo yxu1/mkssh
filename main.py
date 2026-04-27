@@ -484,11 +484,11 @@ class FixUpper:
 
 
 def gen_ssh_proxy_command(proxy_type, **kv):
-    """
-    生成ssh配置文件里边的ProxyCommand命令
-    比如http代理就是
-    ProxyCommand "C:\app\ckcr\ckcr.exe" 127.0.0.1 12639 %h %p
-    """
+    # """
+    # 生成ssh配置文件里边的ProxyCommand命令
+    # 比如http代理就是
+    # ProxyCommand "C:\app\ckcr\ckcr.exe" 127.0.0.1 12639 %h %p
+    # """
     if proxy_type == 'http':
         # HTTP代理配置
         proxy_host = kv.get('proxy_host', '')
