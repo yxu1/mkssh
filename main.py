@@ -42,8 +42,8 @@ SSHKEY_OUT_DIR: str = os.path.join('C:\\', '0', 'sshkey')
 # 默认sshkey
 DEFAULT_IDENTITY_FILE = '~/.ssh/id_rsa'
 # HTTP 代理 ProxyCommand 实现：ncat 或 ckcr，默认 ncat
-HTTP_PROXY_BACKEND: str = 'ncat'
-CKCR_EXE: str = os.path.join('C:\\', 'app', 'ckcr', 'ckcr.exe')
+HTTP_PROXY_BACKEND: str = 'ckcr'
+CKCR_EXE: str = os.path.join('C:\\', 'app', 'ckcr', 'gocorkscrew.exe')
 NCAT_EXE: str = 'ncat.exe'
 
 def has_path_component(name: str) -> bool:
