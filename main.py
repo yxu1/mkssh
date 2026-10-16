@@ -41,6 +41,10 @@ SSHKEY_KEEP_DIR: str = os.path.join(CUDIR, 'sshkey')
 SSHKEY_OUT_DIR: str = os.path.join('C:\\', '0', 'sshkey')
 # 默认sshkey
 DEFAULT_IDENTITY_FILE = '~/.ssh/id_rsa'
+# HTTP 代理 ProxyCommand 实现：ncat 或 ckcr，默认 ncat
+HTTP_PROXY_BACKEND: str = 'ncat'
+CKCR_EXE: str = os.path.join('C:\\', 'app', 'ckcr', 'ckcr.exe')
+NCAT_EXE: str = 'ncat.exe'
 
 def has_path_component(name: str) -> bool:
     """
@@ -317,15 +321,19 @@ class GenCmd:
         """
         # command for putty
         exefile = '"%programfiles%\\PuTTY\\putty.exe"'
-        cork_exe = ('C:\\app\\ckcr\\ckcr.exe')
         cmd = ''
         cmd += f'@echo off{os.linesep}'
         if self.proxy_type and self.proxy_type == 'http':
-            # 暂时只支持http
-            if self.proxy_user:
-                cmd += f'set CORKSCREW_AUTH={self.proxy_user}:{self.proxy_password}{os.linesep}'
-            proxyarg = ''' -proxycmd "\\"{}\\" {} {} %%host %%port"'''.format(
-                cork_exe.replace("\\","\\\\"), self.proxy_host, self.proxy_port)
+            # 暂时只支持http。占位符用 PuTTY 的 %host %port，批处理转义在 format_putty_proxycmd 里完成
+            command = build_http_proxy_command(
+                proxy_host=self.proxy_host or '',
+                proxy_port=self.proxy_port or '',
+                proxy_user=self.proxy_user or '',
+                proxy_password=self.proxy_password or '',
+                host_token='%host',
+                port_token='%port',
+            )
+            proxyarg = format_putty_proxycmd(command)
         else:
             proxyarg = ''
         autharg = ''
@@ -483,31 +491,61 @@ class FixUpper:
             return o
 
 
+def build_http_proxy_command(
+    proxy_host: str,
+    proxy_port: str,
+    proxy_user: str = '',
+    proxy_password: str = '',
+    backend: str = HTTP_PROXY_BACKEND,
+    host_token: str = '%h',
+    port_token: str = '%p',
+) -> str:
+    """生成 HTTP 代理命令体。
+
+    OpenSSH 使用默认占位符 %h %p，PuTTY 传入 %host %port。
+    ncat: "ncat.exe" --proxy-type http --proxy 127.0.0.1:12639 %h %p
+    ckcr: "C:\\app\\ckcr\\ckcr.exe" 127.0.0.1 12639 %h %p
+    有代理账号时，ncat 追加 --proxy-auth，ckcr 追加 -u。
+    """
+    if backend == 'ncat':
+        command = f'"{NCAT_EXE}" --proxy-type http --proxy {proxy_host}:{proxy_port}'
+        if proxy_user and proxy_password:
+            command += f' --proxy-auth "{proxy_user}:{proxy_password}"'
+        return f'{command} {host_token} {port_token}'
+    if backend == 'ckcr':
+        command = f'"{CKCR_EXE}" {proxy_host} {proxy_port} {host_token} {port_token}'
+        if proxy_user and proxy_password:
+            command += f' -u "{proxy_user}:{proxy_password}"'
+        return command
+    raise ValueError(f"Unsupported HTTP proxy backend: {backend}")
+
+
+def format_putty_proxycmd(command: str) -> str:
+    """把代理命令转成 PuTTY 批处理中的 -proxycmd 参数。
+
+    批处理里 % 写成 %%，引号和反斜杠按 -proxycmd 的写法转义。
+    """
+    escaped = command.replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%')
+    return f' -proxycmd "{escaped}"'
+
+
 def gen_ssh_proxy_command(proxy_type, **kv):
-    # """
-    # 生成ssh配置文件里边的ProxyCommand命令
-    # 比如http代理就是
-    # ProxyCommand "C:\app\ckcr\ckcr.exe" 127.0.0.1 12639 %h %p
-    # """
+    """生成 ssh 配置文件中的 ProxyCommand 行。"""
     if proxy_type == 'http':
-        # HTTP代理配置
         proxy_host = kv.get('proxy_host', '')
         proxy_port = kv.get('proxy_port', '')
         proxy_user = kv.get('proxy_user', '')
         proxy_password = kv.get('proxy_password', '')
-        cork_exe = 'C:\\app\\ckcr\\ckcr.exe'
-        # 检查必要参数
         if not proxy_host or not proxy_port:
             raise ValueError("HTTP proxy requires proxy_host and proxy_port")
-        
-        # 构建代理命令
-        proxy_cmd = ""
-        if proxy_user and proxy_password:
-            proxy_cmd = f'ProxyCommand "{cork_exe}" {proxy_host} {proxy_port} %h %p -u "{proxy_user}:{proxy_password}"'
-        else:
-            proxy_cmd = f'ProxyCommand "{cork_exe}" {proxy_host} {proxy_port} %h %p'
-        
-        return proxy_cmd
+        command = build_http_proxy_command(
+            proxy_host=proxy_host,
+            proxy_port=proxy_port,
+            proxy_user=proxy_user or '',
+            proxy_password=proxy_password or '',
+            backend=kv.get('backend', HTTP_PROXY_BACKEND),
+        )
+        return f'ProxyCommand {command}'
     
     elif proxy_type == 'socks5':
         # SOCKS5代理配置
